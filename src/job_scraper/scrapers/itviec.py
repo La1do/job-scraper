@@ -104,4 +104,16 @@ class ITViecScraper(BaseScraper):
         desc = soup.select_one("div.job-description, div[class*='job-content'], .paragraph")
         if desc:
             rec.description = desc.get_text("\n", strip=True)[:8000]
+
+        # Extract raw original skills/requirements section
+        for h in soup.find_all(["h2", "h3", "h4"]):
+            htext = h.get_text(" ", strip=True).lower()
+            if any(k in htext for k in ["skills", "experience", "yêu cầu", "requirements"]):
+                parent = h.find_parent("div")
+                if parent:
+                    raw_skills = parent.get_text("\n", strip=True)
+                    # If we only had short tags or no tags, use the raw original requirements
+                    rec.skills_desc = raw_skills[:8000]
+                    break
+
         rec.is_english = str(is_english(rec.title, rec.description, rec.skills_desc))

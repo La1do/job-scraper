@@ -29,7 +29,6 @@ class CareerVietScraper(BaseScraper):
         slug = quote(keyword.strip().lower().replace(" ", "-")) if keyword.strip() else ""
         for page in range(1, pages + 1):
             if slug:
-                # CareerViet keyword pagination: /viec-lam/<slug>-k-trang-<page>-vi.html
                 if page == 1:
                     url = f"https://careerviet.vn/viec-lam/{slug}-k-vi.html"
                 else:
@@ -47,8 +46,36 @@ class CareerVietScraper(BaseScraper):
             log.info("careerviet '%s' page %d: %d jobs", keyword or "all", page, len(page_records))
             if not page_records:
                 break
+            if not fast:
+                for rec in page_records:
+                    self._fill_detail(rec)
             records.extend(page_records)
         return records
+
+    def _fill_detail(self, rec: JobRecord) -> None:
+        html = self.fetch(rec.job_posting_url)
+        if not html:
+            return
+        soup = BeautifulSoup(html, "lxml")
+        # Extract raw sections
+        for h in soup.find_all(["h2", "h3", "h4"]):
+            htext = h.get_text(" ", strip=True).lower()
+            parent = h.find_parent("div")
+            if not parent:
+                continue
+            body = parent.get_text("\n", strip=True)
+            if any(k in htext for k in ["mô tả công việc", "job description", "mô tả"]):
+                if not rec.description:
+                    rec.description = body[:8000]
+            elif any(k in htext for k in ["yêu cầu công việc", "job requirement", "yêu cầu ứng viên", "yêu cầu"]):
+                # Always take raw requirements instead of just keywords
+                rec.skills_desc = body[:8000]
+        # Fallback if specific headings not found
+        if not rec.description:
+            main = soup.select_one(".job-description, .full-content, div.detail-row")
+            if main:
+                rec.description = main.get_text("\n", strip=True)[:8000]
+        rec.is_english = str(is_english(rec.title, rec.description, rec.skills_desc))
 
     def parse_listing(self, html: str) -> list[JobRecord]:
         soup = BeautifulSoup(html, "lxml")

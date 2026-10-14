@@ -101,9 +101,23 @@ class TopCVScraper(BaseScraper):
         desc = soup.select_one("div.job-description, div.job-data, #job-description")
         if desc:
             rec.description = desc.get_text("\n", strip=True)[:8000]
-        skills = [t.get_text(strip=True) for t in soup.select(".job-tags a, .box-category a, .keyword a")]
-        if skills:
-            rec.skills_desc = ", ".join(dict.fromkeys(skills))
+
+        # Extract raw original candidate requirements section
+        req = soup.select_one("div.job-requirements, div.job-data:nth-of-type(2)")
+        if not req:
+            for h in soup.find_all(["h2", "h3", "h4"]):
+                if any(k in h.get_text(" ", strip=True).lower() for k in ["yêu cầu ứng viên", "yêu cầu"]):
+                    parent = h.find_parent("div")
+                    if parent:
+                        req = parent
+                        break
+        if req:
+            rec.skills_desc = req.get_text("\n", strip=True)[:8000]
+        else:
+            skills = [t.get_text(strip=True) for t in soup.select(".job-tags a, .box-category a, .keyword a")]
+            if skills:
+                rec.skills_desc = ", ".join(dict.fromkeys(skills))
+
         deadline = soup.select_one(".deadline, .job-deadline")
         if deadline:
             rec.expiry = deadline.get_text(" ", strip=True)
