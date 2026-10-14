@@ -53,10 +53,13 @@ def main(argv: list[str] | None = None) -> int:
     else:
         scraper = SOURCES[args.source]()
 
-    records = scraper.scrape(keyword=args.keyword, pages=args.pages, fast=args.fast)
-    if not records:
-        print("no jobs found")
+    try:
+        records = scraper.scrape(keyword=args.keyword, pages=args.pages, fast=args.fast)
+        if not records:
+            print("no jobs found")
+            return 0
+        added, skipped = write_records(args.output, records)
+        print(f"done: {added} added, {skipped} duplicates skipped -> {args.output}")
         return 0
-    added, skipped = write_records(args.output, records)
-    print(f"done: {added} added, {skipped} duplicates skipped -> {args.output}")
-    return 0
+    finally:
+        scraper.close()

@@ -28,6 +28,35 @@ class BaseScraper(ABC):
     def __init__(self, timeout: float = 20.0, retries: int = 3) -> None:
         self.timeout = timeout
         self.retries = retries
+        self._pw = None
+        self._browser = None
+        self._context = None
+
+    def close(self) -> None:
+        if self._context:
+            try:
+                self._context.close()
+            except Exception:
+                pass
+            self._context = None
+        if self._browser:
+            try:
+                self._browser.close()
+            except Exception:
+                pass
+            self._browser = None
+        if self._pw:
+            try:
+                self._pw.stop()
+            except Exception:
+                pass
+            self._pw = None
+
+    def __enter__(self) -> BaseScraper:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()
 
     def fetch(self, url: str, params: dict | None = None, allow_browser_fallback: bool = True) -> str | None:
         last_error: Exception | None = None
@@ -50,11 +79,22 @@ class BaseScraper(ABC):
         log.error("giving up on %s: %s", url, last_error)
         return None
 
+    def _ensure_browser(self) -> None:
+        if self._browser and self._context:
+            return
+        from playwright.sync_api import sync_playwright
+        self._pw = sync_playwright().start()
+        self._browser = self._pw.chromium.launch(headless=True)
+        self._context = self._browser.new_context(user_agent=DEFAULT_HEADERS["User-Agent"])
+
     def _fetch_browser(self, url: str, params: dict | None = None) -> str | None:
         try:
-            from playwright.sync_api import sync_playwright
+            self._ensure_browser()
         except ImportError:
             log.warning("playwright not installed, cannot use browser fallback")
+            return None
+        except Exception as exc:
+            log.error("failed to launch browser: %s", exc)
             return None
 
         target_url = url
@@ -63,18 +103,22 @@ class BaseScraper(ABC):
             sep = "&" if "?" in url else "?"
             target_url = f"{url}{sep}{urlencode(params)}"
 
-        log.info("launching headless browser for %s", target_url)
+        log.info("fetching via headless browser: %s", target_url)
+        page = None
         try:
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page(user_agent=DEFAULT_HEADERS["User-Agent"])
-                page.goto(target_url, timeout=int(self.timeout * 1500), wait_until="domcontentloaded")
-                content = page.content()
-                browser.close()
-                return content
+            page = self._context.new_page()
+            page.goto(target_url, timeout=int(self.timeout * 1500), wait_until="domcontentloaded")
+            content = page.content()
+            return content
         except Exception as exc:
             log.error("browser fetch failed for %s: %s", target_url, exc)
             return None
+        finally:
+            if page:
+                try:
+                    page.close()
+                except Exception:
+                    pass
 
     @abstractmethod
     def scrape(self, keyword: str, pages: int, fast: bool) -> list[JobRecord]:

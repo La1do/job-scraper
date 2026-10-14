@@ -14,50 +14,66 @@ from job_scraper.models import COLUMNS, JobRecord
 log = logging.getLogger("job_scraper")
 
 
-def _load_seen(path: Path) -> tuple[set[str], set[str]]:
-    ids: set[str] = set()
-    urls: set[str] = set()
+def _load_existing(path: Path) -> list[dict[str, str]]:
     if not path.exists() or path.stat().st_size == 0:
-        return ids, urls
+        return []
     with path.open("r", encoding="utf-8-sig", newline="") as fh:
-        reader = csv.DictReader(fh)
-        for row in reader:
-            if row.get("job_id"):
-                ids.add(row["job_id"])
-            if row.get("job_posting_url"):
-                urls.add(row["job_posting_url"])
-    return ids, urls
+        return list(csv.DictReader(fh))
 
 
 def write_records(path: str | Path, records: list[JobRecord]) -> tuple[int, int]:
-    """Write records. Returns (added, skipped_duplicates)."""
+    """Write records. Merges/updates records with better descriptions if already present."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    seen_ids, seen_urls = _load_seen(target)
-    new_file = not target.exists() or target.stat().st_size == 0
+    existing_rows = _load_existing(target)
+
+    # Key by job_id or url
+    by_key: dict[str, dict[str, str]] = {}
+    row_keys: list[str] = []
+
+    for r in existing_rows:
+        key = r.get("job_id") or r.get("job_posting_url") or ""
+        if key:
+            by_key[key] = r
+            row_keys.append(key)
 
     added = 0
+    updated = 0
     skipped = 0
+
+    for rec in records:
+        new_row = rec.to_row()
+        key = new_row.get("job_id") or new_row.get("job_posting_url") or ""
+        if not key:
+            continue
+
+        if key in by_key:
+            old_row = by_key[key]
+            # If new row has richer description or skills_desc, update in place
+            better_desc = len(new_row.get("description", "")) > len(old_row.get("description", ""))
+            better_skills = len(new_row.get("skills_desc", "")) > len(old_row.get("skills_desc", ""))
+            if better_desc or better_skills:
+                # Merge: copy non-empty new fields into old
+                for col in COLUMNS:
+                    if new_row.get(col):
+                        old_row[col] = new_row[col]
+                updated += 1
+            else:
+                skipped += 1
+        else:
+            by_key[key] = new_row
+            row_keys.append(key)
+            added += 1
+
     try:
-        with target.open("a", encoding="utf-8-sig", newline="") as fh:
+        with target.open("w", encoding="utf-8-sig", newline="") as fh:
             writer = csv.DictWriter(fh, fieldnames=COLUMNS, extrasaction="ignore", lineterminator="\n")
-            if new_file:
-                writer.writeheader()
-            for rec in records:
-                row = rec.to_row()
-                if (row["job_id"] and row["job_id"] in seen_ids) or (
-                    row["job_posting_url"] and row["job_posting_url"] in seen_urls
-                ):
-                    skipped += 1
-                    continue
-                writer.writerow(row)
-                if row["job_id"]:
-                    seen_ids.add(row["job_id"])
-                if row["job_posting_url"]:
-                    seen_urls.add(row["job_posting_url"])
-                added += 1
+            writer.writeheader()
+            for key in row_keys:
+                writer.writerow(by_key[key])
     except PermissionError:
         log.error("cannot write %s — file is open in another program (close Excel and retry)", target)
         raise
-    log.info("csv %s: added %d, skipped %d duplicates", target, added, skipped)
-    return added, skipped
+
+    log.info("csv %s: %d added, %d updated, %d skipped", target, added, updated, skipped)
+    return added + updated, skipped
