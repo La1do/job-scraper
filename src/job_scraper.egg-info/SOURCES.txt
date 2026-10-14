@@ -1,3 +1,4 @@
+README.md
 pyproject.toml
 src/job_scraper/__init__.py
 src/job_scraper/__main__.py
@@ -11,6 +12,7 @@ src/job_scraper.egg-info/requires.txt
 src/job_scraper.egg-info/top_level.txt
 src/job_scraper/scrapers/__init__.py
 src/job_scraper/scrapers/base.py
+src/job_scraper/scrapers/careerviet.py
 src/job_scraper/scrapers/generic.py
 src/job_scraper/scrapers/itviec.py
 src/job_scraper/scrapers/topcv.py

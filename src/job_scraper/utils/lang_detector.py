@@ -19,7 +19,9 @@ _VI_DIACRITIC = re.compile(
 _EN_TOKENS = re.compile(
     r"\b(the|and|for|with|you|our|we|are|looking|requirements|"
     r"experience|responsibilities|skills|about|join|team|role|"
-    r"position|developer|engineer|salary|benefits|apply)\b",
+    r"position|developer|engineer|salary|benefits|apply|"
+    r"marketing|specialist|manager|executive|officer|lead|"
+    r"analyst|consultant|intern|internship|designer|director)\b",
     re.IGNORECASE,
 )
 

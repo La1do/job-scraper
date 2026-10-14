@@ -6,6 +6,7 @@ import argparse
 import logging
 import sys
 
+from job_scraper.scrapers.careerviet import CareerVietScraper
 from job_scraper.scrapers.generic import GenericScraper
 from job_scraper.scrapers.itviec import ITViecScraper
 from job_scraper.scrapers.topcv import TopCVScraper
@@ -14,16 +15,17 @@ from job_scraper.storage.csv_writer import write_records
 SOURCES = {
     "topcv": TopCVScraper,
     "itviec": ITViecScraper,
+    "careerviet": CareerVietScraper,
 }
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="job_scraper",
-        description="Scrape job postings from TopCV, ITviec, or any URL into one CSV.",
+        description="Scrape job postings from TopCV, ITviec, CareerViet, or any URL into one CSV.",
     )
-    parser.add_argument("--source", required=True, choices=["topcv", "itviec", "generic"],
-                        help="topcv | itviec | generic")
+    parser.add_argument("--source", required=True, choices=["topcv", "itviec", "careerviet", "generic"],
+                        help="topcv | itviec | careerviet | generic")
     parser.add_argument("--keyword", default="", help="search keyword (topcv, itviec)")
     parser.add_argument("--pages", type=int, default=1, help="number of listing pages (default 1)")
     parser.add_argument("--url", default="", help="page URL, required when --source generic")

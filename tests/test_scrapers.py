@@ -100,3 +100,44 @@ def test_generic_jsonld_parse() -> None:
     assert j.pay_period == "MONTH"
     assert j.source_website == "Generic"
     assert j.is_english == "True"
+
+
+CAREERVIET_SAMPLE = """
+<div class="job-item" id="job-item-123ABC">
+  <div class="figcaption">
+    <h2>
+      <a class="job_link" data-id="123ABC" href="/vi/tim-viec-lam/digital-marketing-specialist.html" title="Digital Marketing Specialist">
+        Digital Marketing Specialist
+      </a>
+    </h2>
+    <a class="company-name" title="Shopee Vietnam">Shopee Vietnam</a>
+    <div class="salary"><p>Lương: 20 - 30 Triệu VND</p></div>
+    <div class="location">Hồ Chí Minh</div>
+    <div class="time">
+      <time>15-11-2026</time>
+      <time>14-10-2026</time>
+    </div>
+    <ul class="welfare"><li>Thưởng tháng 13</li><li>Bảo hiểm sức khỏe</li></ul>
+  </div>
+</div>
+"""
+
+
+def test_careerviet_parse_listing() -> None:
+    from job_scraper.scrapers.careerviet import CareerVietScraper
+    scraper = CareerVietScraper()
+    jobs = scraper.parse_listing(CAREERVIET_SAMPLE)
+    assert len(jobs) == 1
+    j = jobs[0]
+    assert j.job_id == "careerviet_123ABC"
+    assert j.title == "Digital Marketing Specialist"
+    assert j.company_id == "Shopee Vietnam"
+    assert j.min_salary == "20000000"
+    assert j.max_salary == "30000000"
+    assert j.currency == "VND"
+    assert j.location == "Hồ Chí Minh"
+    assert j.expiry == "15-11-2026"
+    assert j.listed_time == "14-10-2026"
+    assert "Thưởng tháng 13" in j.skills_desc
+    assert j.source_website == "CareerViet"
+    assert j.is_english == "True"
